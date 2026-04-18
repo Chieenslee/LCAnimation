@@ -1,54 +1,95 @@
 import os
-from fastapi import FastAPI, File, UploadFile, Form
+from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from services.ai_service import AIGeneratorService
+from utils.exporters import ExporterSystem
 
 app = FastAPI(title="LCAnimation AI Backend", version="1.0.0")
 
 # Khởi tạo Service xử lý AI
 ai_service = AIGeneratorService()
 
-# Cấu hình CORS để cho phép Frontend Vite gọi API (Mặc định Vite chạy port 5173)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Trong Production nên thay bằng URL frontend thực tế
+    allow_origins=["*"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+def cleanup_files(file_paths: list):
+    """
+    Hàm xóa rác tự động (Background Task). 
+    Sẽ được kích hoạt ngầm sau khi FastAPI trả file về cho Frontend xong.
+    """
+    for path in file_paths:
+        if path and os.path.exists(path):
+            try:
+                os.remove(path)
+                print(f"[Cleanup] Deleted temporary file: {path}")
+            except Exception as e:
+                print(f"[Cleanup Error] Failed to delete {path}: {e}")
+
 @app.post("/api/v1/generate")
 async def generate_animation(
+    background_tasks: BackgroundTasks,
     image: UploadFile = File(...),
-    prompt: str = Form(...)
+    prompt: str = Form(...),
+    export_type: str = Form("video") # Loại định dạng xuất: 'video', 'game', 'web'
 ):
     """
-    Endpoint nhận ảnh và prompt từ Frontend, xử lý bằng diffusers/torch, và trả về Video MP4.
+    Endpoint đa năng: Nhận ảnh, sinh Video qua AI, sau đó xuất file ZIP/MP4 dựa theo `export_type`.
     """
     try:
-        # Đọc dữ liệu ảnh gốc
         image_data = await image.read()
-        
         print(f"--- NHẬN YÊU CẦU TỪ FRONTEND ---")
+        print(f"Export Type: {export_type}")
         print(f"Prompt: '{prompt}'")
-        print(f"Kích thước ảnh: {len(image_data)} bytes")
         
-        # Đưa vào AI Service chạy Inference nặng
-        video_path = ai_service.generate_animation(image_data, prompt)
+        # 1. Sinh AI Inference -> Trả về đường dẫn MP4 và danh sách PIL Images (Frames)
+        video_path, frames = ai_service.generate_animation(image_data, prompt)
         
-        # Kiểm tra nếu file tồn tại
-        if not os.path.exists(video_path):
-            raise Exception("Video generation failed. Output file not found.")
-
-        print(f"Returning generated video: {video_path}")
-        # Trả trực tiếp file MP4 dạng Stream (FileResponse) về cho Frontend
-        return FileResponse(
-            path=video_path,
-            media_type="video/mp4",
-            filename="lcanimation_result.mp4"
-        )
+        # Danh sách các file cần xóa sau khi API đóng kết nối
+        files_to_cleanup = [video_path] 
         
+        # 2. Điều phối theo export_type
+        if export_type == "game":
+            output_zip = "game_assets.zip"
+            ExporterSystem.export_game_assets(frames, output_zip)
+            files_to_cleanup.append(output_zip)
+            
+            # Đăng ký dọn rác
+            background_tasks.add_task(cleanup_files, files_to_cleanup)
+            return FileResponse(
+                path=output_zip,
+                media_type="application/zip",
+                filename="game_assets.zip"
+            )
+            
+        elif export_type == "web":
+            output_zip = "web_assets.zip"
+            ExporterSystem.export_web_assets(video_path, output_zip)
+            files_to_cleanup.append(output_zip)
+            
+            # Đăng ký dọn rác
+            background_tasks.add_task(cleanup_files, files_to_cleanup)
+            return FileResponse(
+                path=output_zip,
+                media_type="application/zip",
+                filename="web_assets.zip"
+            )
+            
+        else: 
+            # Mặc định là trả về Video MP4 chuẩn
+            # Đăng ký dọn rác
+            background_tasks.add_task(cleanup_files, files_to_cleanup)
+            return FileResponse(
+                path=video_path,
+                media_type="video/mp4",
+                filename="lcanimation_result.mp4"
+            )
+            
     except Exception as e:
         print(f"Error in API generate: {e}")
         return JSONResponse(status_code=500, content={

@@ -34,9 +34,9 @@ class AIGeneratorService:
         self.is_loaded = True
         print("Model loaded with Extreme VRAM optimizations applied.")
 
-    def generate_animation(self, image_data: bytes, prompt: str) -> str:
+    def generate_animation(self, image_data: bytes, prompt: str):
         """
-        Nhận vào ảnh (bytes) và prompt. Trả về đường dẫn file video tạm thời.
+        Nhận vào ảnh (bytes) và prompt. Trả về (đường_dẫn_video, danh_sách_PIL_frames).
         """
         if not self.is_loaded:
             self.load_model()
@@ -66,7 +66,7 @@ class AIGeneratorService:
             # Xuất chuỗi frame thành Video MP4
             export_to_video(frames, output_path, fps=7)
             
-            return output_path
+            return output_path, frames
             
         except Exception as e:
             print(f"Inference Error: {e}")

@@ -93,3 +93,14 @@
   3. `pipe.enable_vae_slicing()`: Cắt lát quá trình decode ảnh, khắc chế triệt để lỗi nổ bộ nhớ khi xuất hàng chục frames cùng lúc.
   4. `torch.cuda.empty_cache()`: Khối lệnh `finally` cưỡng ép dọn rác GPU và thu gom `gc.collect()` sau mỗi lần sinh ảnh, không để lại dù chỉ 1MB VRAM bị rò rỉ.
 - **Bước tiếp theo:** Cập nhật Frontend để đón nhận và trích xuất Frame từ File Video MP4 được trả về từ Backend thay cho dữ liệu Blob nội suy như trước đây.
+
+## [18/04/2026 - 20:31] - Cập nhật trạng thái (PYTHON EXPORTERS SYSTEM)
+- **Kiến trúc:** Dịch chuyển Module Xuất File (Exporters) hoàn toàn sang phía Backend Python. Xóa bỏ rủi ro treo RAM trình duyệt.
+- **Module hoàn thiện:** Xây dựng `backend/utils/exporters.py` và cập nhật API `backend/main.py`. Thêm Pillow, moviepy vào `requirements.txt`.
+- **Chức năng:**
+  1. `Game Exporter`: Tận dụng sức mạnh xử lý của Python `Pillow (PIL)`. Tự động dùng `math.sqrt()` tính toán lưới cắt ghép hàng chục khung hình AI vào một tấm Canvas khổng lồ (SpriteSheet.png) chỉ trong vài miligiây. Đồng thời sinh mã JSON chuẩn Unity/Phaser và gói thành ZIP.
+  2. `Web Exporter`: Xuất gói ZIP chứa `index.html` và `script.js`. Nhúng sẵn GSAP Boilerplate Code kết hợp Video MP4 làm nền. Cách làm này tinh giản kích thước website đi rất nhiều so với kỹ thuật chèn Base64 cục bộ của Client cũ.
+  3. `Video Exporter`: Xử lý MP4 (hoặc GIF) nguyên bản.
+- **Giao tiếp (Interfaces):** Endpoint `POST /api/v1/generate` nay nhận thêm trường `export_type` (`video`, `game`, `web`) từ `FormData`. Phản hồi một tệp nén `.zip` hoặc `.mp4` chuẩn qua `FileResponse`.
+- **Tài nguyên (Quản lý Rác Ổ Cứng Server):** Ứng dụng kỹ thuật `background_tasks` độc quyền của FastAPI. Ngay sau khi server xả xong file ZIP về cho người dùng, một luồng ngầm sẽ lập tức thức dậy và gọi lệnh `os.remove()`, dọn sạch sẽ toàn bộ `.mp4`, `.png`, `.json`, `.zip` tạm trong ổ cứng. Không cho rác ảo tích tụ gây sập ổ chủ.
+- **Bước tiếp theo:** Xóa hẳn các thư mục Exporter lằng nhằng ở Frontend và cấu trúc lại các nút bấm Export để cắm thẳng trực tiếp vào Backend. Mọi thứ đã nhẹ như lông hồng.

@@ -4,3 +4,6 @@ torch
 diffusers
 transformers
 python-multipart
+Pillow
+moviepy
+imageio
