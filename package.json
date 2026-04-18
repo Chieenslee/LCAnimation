@@ -13,6 +13,7 @@
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.10",
     "@ffmpeg/util": "^0.12.1",
+    "@huggingface/transformers": "^3.0.0-alpha.19",
     "gsap": "^3.12.5"
   },
   "devDependencies": {

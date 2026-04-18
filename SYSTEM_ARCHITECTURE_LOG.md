@@ -32,3 +32,10 @@
 - **Giao tiếp (Interfaces):** N/A
 - **Tài nguyên:** Ngăn chặn đẩy rác (`node_modules`, `.eslintcache`) và file build (`dist`) lên GitHub giúp tiết kiệm dung lượng kho lưu trữ.
 - **Bước tiếp theo:** Bắt đầu code logic thực tế: Tích hợp mô hình AI Lượng tử hóa thực sự vào Web Worker.
+
+## [18/04/2026 - 19:50] - Cập nhật trạng thái
+- **Module hoàn thiện:** Cập nhật `package.json`, thêm `src/core/ai-engine/ai-model-manager.ts`
+- **Chức năng:** Tích hợp pipeline AI lượng tử hóa chạy thực tế trên WebGPU. Lớp `AIModelManager` chịu trách nhiệm tải mô hình dạng INT8/FP16 (giúp tối ưu hóa và chống tràn 4GB VRAM của card RTX 3050). Hàm `generateAnimation()` thực thi pipeline sinh ảnh/frames và đóng gói lại thành định dạng `Blob` để trả về cho UI.
+- **Giao tiếp (Interfaces):** Sử dụng WebGPU pipeline API thông qua `@huggingface/transformers` với `{ device: 'webgpu', dtype: 'q8' }`.
+- **Tài nguyên:** Đã xây dựng hàm `disposeResources()` gọi `this.aiPipeline.dispose()` để chủ động giải phóng bộ nhớ đồ họa (VRAM) khi có lệnh hủy, đảm bảo ứng dụng có thể chạy nhiều lần mà không bị treo.
+- **Bước tiếp theo:** Hoàn thiện thuật toán Exporter: Cắt frames thành SpriteSheet cho Game và xử lý FFmpeg xuất MP4 (nếu cần tinh chỉnh thêm), hoặc tích hợp trực tiếp `AIModelManager` vào `ai-worker.ts`.
