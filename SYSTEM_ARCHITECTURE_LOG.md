@@ -39,3 +39,10 @@
 - **Giao tiếp (Interfaces):** Sử dụng WebGPU pipeline API thông qua `@huggingface/transformers` với `{ device: 'webgpu', dtype: 'q8' }`.
 - **Tài nguyên:** Đã xây dựng hàm `disposeResources()` gọi `this.aiPipeline.dispose()` để chủ động giải phóng bộ nhớ đồ họa (VRAM) khi có lệnh hủy, đảm bảo ứng dụng có thể chạy nhiều lần mà không bị treo.
 - **Bước tiếp theo:** Hoàn thiện thuật toán Exporter: Cắt frames thành SpriteSheet cho Game và xử lý FFmpeg xuất MP4 (nếu cần tinh chỉnh thêm), hoặc tích hợp trực tiếp `AIModelManager` vào `ai-worker.ts`.
+
+## [18/04/2026 - 19:54] - Cập nhật trạng thái
+- **Module hoàn thiện:** Cập nhật `src/exporters/exporter.interface.ts`, `src/exporters/web-exporter.ts`, `src/exporters/game-exporter.ts`, `src/exporters/video-exporter.ts`
+- **Chức năng:** Thuật toán ghép khung hình (`ImageBitmap[]`) thành `SpriteSheet` Grid tối ưu hóa không gian (dựa trên căn bậc hai) kèm file JSON tọa độ cho Game Engine. Đồng thời xuất mã Boilerplate HTML/JS nhúng thư viện GSAP để tạo hiệu ứng chuyển đổi background liên tục (step ease) cho Website.
+- **Giao tiếp (Interfaces):** Điều chỉnh `IExporter` nhận kiểu dữ liệu động (`data: any`) để hỗ trợ mảng đối tượng `ImageBitmap` từ luồng Worker.
+- **Tài nguyên:** Áp dụng kỹ thuật "zero-out Canvas" (`canvas.width = 0; canvas.height = 0;`) kết hợp cắt đứt tham chiếu (gán `null`) trong hàm `dispose()` để báo hiệu cho bộ dọn rác (Garbage Collector) thu hồi RAM cực kỳ triệt để.
+- **Bước tiếp theo:** Hoàn thiện bộ xuất Video MP4 bằng FFmpeg.wasm và kết nối UI lần cuối.

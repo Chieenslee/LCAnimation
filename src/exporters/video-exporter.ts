@@ -17,7 +17,7 @@ export class VideoExporter implements IExporter {
         }
     }
 
-    public async export(data: Blob): Promise<void> {
+    public async export(data: any): Promise<void> {
         await this.initFFmpeg();
 
         try {

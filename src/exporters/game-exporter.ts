@@ -15,87 +15,71 @@ export class GameExporter implements IExporter {
         }
     }
 
-    public async export(data: Blob): Promise<void> {
+    public async export(data: any): Promise<void> {
+        const frames = data as ImageBitmap[];
+        
+        if (!frames || frames.length === 0) {
+            throw new Error("No frames provided for Game Export.");
+        }
+
         if (!this.canvas || !this.ctx) {
             throw new Error("Canvas context is not initialized.");
         }
 
         return new Promise((resolve, reject) => {
-            const videoUrl = URL.createObjectURL(data);
-            this.objectUrls.add(videoUrl);
+            const frameCount = frames.length;
+            const frameWidth = frames[0].width;
+            const frameHeight = frames[0].height;
 
-            const video = document.createElement('video');
-            video.src = videoUrl;
-            video.crossOrigin = "anonymous";
-            video.muted = true;
-            
-            video.onloadeddata = async () => {
-                const width = video.videoWidth || 512;
-                const height = video.videoHeight || 512;
-                const metadata: any = { frames: {} };
+            // Tính toán Grid (Lưới) vuông vức nhất có thể để tối ưu Texture Size trong Game Engine
+            const cols = Math.ceil(Math.sqrt(frameCount));
+            const rows = Math.ceil(frameCount / cols);
 
-                // Define arbitrary frame count or FPS for extraction
-                const frameCount = 10; 
-                const duration = video.duration || 1;
-                const step = duration / frameCount;
+            // Gán kích thước cho Canvas khổng lồ
+            this.canvas!.width = cols * frameWidth;
+            this.canvas!.height = rows * frameHeight;
+            this.ctx!.clearRect(0, 0, this.canvas!.width, this.canvas!.height);
 
-                // Create a giant canvas for spritesheet (Horizontal strip for simplicity)
-                this.canvas!.width = width * frameCount;
-                this.canvas!.height = height;
-                this.ctx!.clearRect(0, 0, this.canvas!.width, this.canvas!.height);
+            const metadata: any = { frames: {} };
 
-                for (let i = 0; i < frameCount; i++) {
-                    video.currentTime = i * step;
+            // Vẽ từng khung hình vào đúng vị trí lưới
+            for (let i = 0; i < frameCount; i++) {
+                const col = i % cols;
+                const row = Math.floor(i / cols);
+
+                const xOffset = col * frameWidth;
+                const yOffset = row * frameHeight;
+
+                this.ctx!.drawImage(frames[i], xOffset, yOffset, frameWidth, frameHeight);
+
+                // Lưu tọa độ vào định dạng chuẩn SpriteSheet
+                metadata.frames[`frame_${i}`] = {
+                    frame: { x: xOffset, y: yOffset, w: frameWidth, h: frameHeight },
+                    rotated: false,
+                    trimmed: false,
+                    spriteSourceSize: { x: 0, y: 0, w: frameWidth, h: frameHeight },
+                    sourceSize: { w: frameWidth, h: frameHeight }
+                };
+            }
+
+            // Xuất Canvas thành file SpriteSheet PNG
+            this.canvas!.toBlob((blob) => {
+                if (blob) {
+                    const spriteUrl = URL.createObjectURL(blob);
+                    this.objectUrls.add(spriteUrl);
+                    this.downloadFile(spriteUrl, 'spritesheet.png');
                     
-                    // Wait for the video to seek
-                    await new Promise<void>((seekResolve) => {
-                        const onSeeked = () => {
-                            video.removeEventListener('seeked', onSeeked);
-                            seekResolve();
-                        };
-                        video.addEventListener('seeked', onSeeked);
-                    });
-
-                    // Draw frame onto spritesheet canvas
-                    const xOffset = i * width;
-                    this.ctx!.drawImage(video, xOffset, 0, width, height);
+                    // Xuất toạ độ thành file JSON
+                    const jsonBlob = new Blob([JSON.stringify(metadata, null, 2)], { type: 'application/json' });
+                    const jsonUrl = URL.createObjectURL(jsonBlob);
+                    this.objectUrls.add(jsonUrl);
+                    this.downloadFile(jsonUrl, 'spritesheet.json');
                     
-                    // Store coordinates in JSON metadata
-                    metadata.frames[`frame_${i}`] = {
-                        frame: { x: xOffset, y: 0, w: width, h: height },
-                        rotated: false,
-                        trimmed: false,
-                        spriteSourceSize: { x: 0, y: 0, w: width, h: height },
-                        sourceSize: { w: width, h: height }
-                    };
+                    resolve();
+                } else {
+                    reject(new Error("Failed to generate SpriteSheet blob."));
                 }
-
-                // Download SpriteSheet PNG
-                this.canvas!.toBlob((blob) => {
-                    if (blob) {
-                        const spriteUrl = URL.createObjectURL(blob);
-                        this.objectUrls.add(spriteUrl);
-                        this.downloadFile(spriteUrl, 'spritesheet.png');
-                        
-                        // Download JSON Metadata
-                        const jsonBlob = new Blob([JSON.stringify(metadata, null, 2)], { type: 'application/json' });
-                        const jsonUrl = URL.createObjectURL(jsonBlob);
-                        this.objectUrls.add(jsonUrl);
-                        this.downloadFile(jsonUrl, 'spritesheet.json');
-                        
-                        resolve();
-                    } else {
-                        reject(new Error("Failed to generate SpriteSheet blob."));
-                    }
-                }, 'image/png');
-            };
-
-            video.onerror = () => {
-                reject(new Error("Failed to load video data for Game Export."));
-            };
-            
-            // Trigger load
-            video.load();
+            }, 'image/png');
         });
     }
 
@@ -109,22 +93,22 @@ export class GameExporter implements IExporter {
     }
 
     public dispose(): void {
-        // Clean up giant canvas
+        // Kỹ thuật Zero-out Canvas: Ép kích thước về 0 để GC thu hồi bộ nhớ ngay lập tức
         if (this.canvas) {
             this.canvas.width = 0;
             this.canvas.height = 0;
         }
         
-        // Clear references
+        // Xóa tham chiếu
         this.canvas = null;
         this.ctx = null;
 
-        // Revoke all created URLs to avoid memory leaks
+        // Dọn dẹp URL tĩnh
         this.objectUrls.forEach((url) => {
             URL.revokeObjectURL(url);
         });
         this.objectUrls.clear();
         
-        console.log("GameExporter disposed, Canvas and URLs cleared.");
+        console.log("GameExporter disposed, Canvas zeroed out and URLs cleared.");
     }
 }
