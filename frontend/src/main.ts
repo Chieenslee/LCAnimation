@@ -1,22 +1,6 @@
-import { ImageProcessor } from './core/image-processing/image-processor';
-import { WebExporter } from './exporters/web-exporter';
-import { GameExporter } from './exporters/game-exporter';
-import { VideoExporter } from './exporters/video-exporter';
-import { MemoryProfiler } from './utils/memory-profiler';
-
-// Types for Worker Messages
-interface WorkerMessage {
-    type: 'INIT_AI' | 'GENERATE' | 'DISPOSE_AI';
-    payload?: any;
-}
-
-interface WorkerResponse {
-    type: 'AI_INITIALIZED' | 'GENERATE_SUCCESS' | 'GENERATE_ERROR' | 'PROGRESS';
-    payload?: any;
-}
-
+// Frontend/src/main.ts - Kiến trúc Thin Client (REST API)
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Khai báo các phần tử DOM (UI)
+    // Khai báo các phần tử DOM
     const uploadInput = document.getElementById('image-upload') as HTMLInputElement | null;
     const promptInput = document.getElementById('prompt-input') as HTMLInputElement | null;
     const generateBtn = document.getElementById('generate-btn') as HTMLButtonElement | null;
@@ -30,179 +14,128 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnExportGame = document.getElementById('btn-export-game') as HTMLButtonElement | null;
     const btnExportVideo = document.getElementById('btn-export-video') as HTMLButtonElement | null;
 
-    if (!uploadInput || !generateBtn || !promptInput || !progressBarContainer || !progressStatus || !progressPercentage || !progressBarFill || !btnExportWeb || !btnExportGame || !btnExportVideo) {
-        console.warn("Required DOM elements for LCAnimation are missing. Please check index.html.");
+    if (!uploadInput || !promptInput || !generateBtn || !progressBarContainer || !progressStatus || !progressPercentage || !progressBarFill || !btnExportWeb || !btnExportGame || !btnExportVideo) {
+        console.warn("Lỗi: Các phần tử DOM không đầy đủ.");
         return;
     }
 
-    // 2. Khởi tạo Modules
-    const imageProcessor = new ImageProcessor();
-    const webExporter = new WebExporter();
-    const gameExporter = new GameExporter();
-    const videoExporter = new VideoExporter();
-    const memoryProfiler = new MemoryProfiler(); // Công cụ đo RAM
-
-    // 3. Quản lý trạng thái State
-    let currentAnimationData: any = null; 
     let currentSelectedFile: File | null = null;
-    let aiWorker: Worker | null = null;
+    const backendUrl = "http://localhost:8000/api/v1/generate";
 
-    const updateProgress = (status: string, percent: number) => {
-        progressBarContainer.style.display = 'block';
-        progressStatus.innerText = status;
-        const boundedPercent = Math.min(Math.max(percent, 0), 100);
-        progressPercentage.innerText = `${Math.round(boundedPercent)}%`;
-        progressBarFill.style.width = `${boundedPercent}%`;
-    };
+    // Khởi tạo giao diện
+    progressBarContainer.style.display = 'none';
+    generateBtn.style.display = 'none'; // Ẩn nút Generate cũ vì giờ chúng ta xuất trực tiếp
 
-    // 4. Khởi động AI Web Worker
-    try {
-        aiWorker = new Worker(new URL('./workers/ai-worker.ts', import.meta.url), { type: 'module' });
-        aiWorker.postMessage({ type: 'INIT_AI' } as WorkerMessage);
-    } catch (e) {
-        console.error("Failed to initialize AI Web Worker:", e);
-        updateProgress("Error: Web Worker Failed to Load.", 0);
-        progressBarFill.style.backgroundColor = '#ef4444'; 
-    }
-
+    // Sự kiện chọn ảnh
     uploadInput.addEventListener('change', (event: Event) => {
         const target = event.target as HTMLInputElement;
         if (target.files && target.files.length > 0) {
             currentSelectedFile = target.files[0];
-            generateBtn.disabled = false; 
+            // Mở khóa luôn 3 nút xuất file
+            btnExportWeb.disabled = false;
+            btnExportGame.disabled = false;
+            btnExportVideo.disabled = false;
         }
     });
 
-    // 5. Luồng xử lý Worker Messaging
-    if (aiWorker) {
-        aiWorker.addEventListener('message', (event: MessageEvent<WorkerResponse>) => {
-            const { type, payload } = event.data;
-
-            switch (type) {
-                case 'AI_INITIALIZED':
-                    console.log("AI Model Worker initialized successfully.");
-                    break;
-                case 'PROGRESS':
-                    updateProgress(payload?.message || 'AI is dreaming...', payload?.progress || 0);
-                    break;
-                case 'GENERATE_SUCCESS':
-                    currentAnimationData = payload?.animationData;
-                    updateProgress("Generation Completed Successfully!", 100);
-                    
-                    btnExportWeb.disabled = false;
-                    btnExportGame.disabled = false;
-                    btnExportVideo.disabled = false;
-                    
-                    memoryProfiler.trackEnd('AI_Inference'); // Dừng đo RAM cho luồng AI
-                    
-                    alert("Hoạt ảnh đã được tạo thành công! Bạn có thể xuất file ngay bây giờ.");
-                    setTimeout(() => { progressBarContainer.style.display = 'none'; }, 3000);
-                    break;
-                case 'GENERATE_ERROR':
-                    updateProgress(`Lỗi: ${payload?.error || 'Unknown error'}`, 0);
-                    progressBarFill.style.backgroundColor = '#ef4444'; 
-                    console.error("Generation Error:", payload?.error);
-                    memoryProfiler.trackEnd('AI_Inference'); // Dừng đo RAM 
-                    alert(`Đã xảy ra lỗi trong quá trình xử lý AI. Lỗi: ${payload?.error}`);
-                    break;
-            }
-        });
+    const updateProgressUI = (status: string, show: boolean, isError: boolean = false) => {
+        progressBarContainer.style.display = show ? 'block' : 'none';
+        progressStatus.innerText = status;
+        
+        // Mô phỏng thanh chạy vô tận với CSS (Thay vì 0-100% như WebGPU cũ)
+        progressBarFill.style.width = '100%'; 
+        progressBarFill.style.backgroundColor = isError ? '#ef4444' : '#3b82f6'; 
+        progressPercentage.innerText = isError ? "Lỗi!" : "Đang xử lý...";
     }
 
-    // 6. Xử lý nút bấm Generate (Kích hoạt luồng E2E)
-    generateBtn.addEventListener('click', async () => {
-        if (!currentSelectedFile || !aiWorker) return;
-
-        btnExportWeb.disabled = true;
-        btnExportGame.disabled = true;
-        btnExportVideo.disabled = true;
-        currentAnimationData = null;
-        progressBarFill.style.backgroundColor = '#10b981'; 
-
-        try {
-            memoryProfiler.trackStart('AI_Inference'); // Bắt đầu đo RAM lúc khởi chạy AI
-            
-            updateProgress("Resizing image for VRAM safety...", 5);
-            const processedBlob = await imageProcessor.processImage(currentSelectedFile);
-            
-            if (!processedBlob) throw new Error("Failed to resize and prepare image.");
-
-            updateProgress("Sending data to AI Worker...", 10);
-            aiWorker.postMessage({
-                type: 'GENERATE',
-                payload: {
-                    image: processedBlob,
-                    prompt: promptInput.value
-                }
-            } as WorkerMessage);
-        } catch (error) {
-            console.error("Image Processing Error:", error);
-            updateProgress("Failed to prepare image.", 0);
-            progressBarFill.style.backgroundColor = '#ef4444';
-            memoryProfiler.trackEnd('AI_Inference');
-        }
-    });
-
-    // 7. Giao diện tích hợp Export và Profiling
-    const handleExport = async (exporter: WebExporter | GameExporter | VideoExporter, btnText: string, targetBtn: HTMLButtonElement) => {
-        if (!currentAnimationData) {
-            alert("Vui lòng khởi tạo (Generate) hoạt ảnh trước khi xuất file.");
+    // Hàm gọi API xử lý đa năng
+    const handleExport = async (exportType: string, buttonElement: HTMLButtonElement) => {
+        if (!currentSelectedFile) {
+            alert("Vui lòng tải lên một hình ảnh trước!");
             return;
         }
 
-        const originalText = targetBtn.innerText;
-        const profileOp = `Export_${btnText.replace(/ /g, '_')}`;
+        const promptText = promptInput.value.trim() || "Make it beautiful";
+
+        // Khóa tất cả các nút để ngăn bấm đúp
+        btnExportWeb.disabled = true;
+        btnExportGame.disabled = true;
+        btnExportVideo.disabled = true;
         
+        const originalText = buttonElement.innerText;
+        buttonElement.innerText = "⏳ Đang gửi...";
+        
+        updateProgressUI("Đang gửi dữ liệu đến AI Server...", true);
+
         try {
-            targetBtn.disabled = true;
-            targetBtn.innerText = "⏳ Đang xử lý...";
-            progressBarFill.style.backgroundColor = '#10b981';
-            
-            updateProgress(`Starting ${btnText} export...`, 0);
+            // Đóng gói dữ liệu chuẩn multipart/form-data
+            const formData = new FormData();
+            formData.append('image', currentSelectedFile);
+            formData.append('prompt', promptText);
+            formData.append('export_type', exportType);
 
-            memoryProfiler.trackStart(profileOp); // Bắt đầu đo RAM cho Exporter
+            updateProgressUI("AI Server đang xử lý cường độ cao (Có thể mất vài chục giây)...", true);
 
-            await exporter.export(currentAnimationData, (progress: number) => {
-                updateProgress(`Rendering ${btnText}...`, progress * 100);
+            // Giao tiếp qua chuẩn REST API với Backend
+            const response = await fetch(backendUrl, {
+                method: 'POST',
+                body: formData
             });
 
-            updateProgress(`${btnText} Export Successful!`, 100);
-            alert(`Tuyệt vời! Xuất file ${btnText} thành công!`);
-        } catch (error) {
-            console.error(`Export Error for ${btnText}:`, error);
-            updateProgress(`Export Failed!`, 0);
-            progressBarFill.style.backgroundColor = '#ef4444'; 
-            alert(`Xuất file thất bại. Vui lòng kiểm tra Console. Lỗi: ${(error as Error).message}`);
-        } finally {
-            memoryProfiler.trackEnd(profileOp); // Chốt sổ lượng RAM tiêu thụ
+            if (!response.ok) {
+                // Đọc lỗi trả về nếu có
+                let errorMsg = "Lỗi không xác định từ Backend";
+                try {
+                    const errData = await response.json();
+                    if (errData.message) errorMsg = errData.message;
+                } catch (e) {}
+                throw new Error(`HTTP ${response.status}: ${errorMsg}`);
+            }
+
+            // Đón kết quả nhị phân (Binary) và chuyển thành Blob
+            updateProgressUI("Đang tải file kết quả về máy...", true);
+            const blob = await response.blob();
+
+            // --- BẮT ĐẦU XỬ LÝ DOWNLOAD ---
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const downloadLink = document.createElement('a');
+            downloadLink.style.display = 'none';
+            downloadLink.href = downloadUrl;
             
-            targetBtn.innerText = originalText;
-            targetBtn.disabled = false;
-            setTimeout(() => { progressBarContainer.style.display = 'none'; }, 3000);
+            // Định danh tên file linh hoạt theo nút bấm
+            let filename = "LCAnimation_Result";
+            if (exportType === 'video') filename += ".mp4";
+            else if (exportType === 'game') filename += "_GameAssets.zip";
+            else if (exportType === 'web') filename += "_WebAssets.zip";
+
+            downloadLink.download = filename;
+            document.body.appendChild(downloadLink);
+            
+            // Ép trình duyệt tự động nhấp để tải file
+            downloadLink.click();
+            
+            // DỌN DẸP RÁC: Xóa đường link để chống rò rỉ RAM trên Frontend
+            window.URL.revokeObjectURL(downloadUrl);
+            document.body.removeChild(downloadLink);
+
+            updateProgressUI("Tải xuống thành công!", true);
+            setTimeout(() => { updateProgressUI("", false); }, 3000);
+            
+        } catch (error) {
+            console.error("Fetch API Error:", error);
+            updateProgressUI(`Lỗi: ${(error as Error).message}`, true, true);
+            alert("Không thể kết nối đến Máy chủ AI. Hãy đảm bảo Backend FastAPI đã chạy ở cổng 8000.");
+        } finally {
+            // Trả lại trạng thái các nút
+            buttonElement.innerText = originalText;
+            btnExportWeb.disabled = false;
+            btnExportGame.disabled = false;
+            btnExportVideo.disabled = false;
         }
     };
 
-    btnExportWeb.addEventListener('click', () => handleExport(webExporter, "Web (GSAP)", btnExportWeb));
-    btnExportGame.addEventListener('click', () => handleExport(gameExporter, "Game (SpriteSheet)", btnExportGame));
-    btnExportVideo.addEventListener('click', () => handleExport(videoExporter, "Video (MP4)", btnExportVideo));
-
-    // 8. KỶ LUẬT THÉP: Dọn dẹp Toàn cục và Kiểm toán RAM
-    window.addEventListener('beforeunload', () => {
-        console.log("Unloading window... Disposing ALL LCAnimation resources.");
-        
-        memoryProfiler.trackStart('Global_Dispose');
-        
-        imageProcessor.dispose();
-        webExporter.dispose();
-        gameExporter.dispose();
-        videoExporter.dispose();
-
-        if (aiWorker) {
-            aiWorker.postMessage({ type: 'DISPOSE_AI' } as WorkerMessage);
-            aiWorker.terminate();
-        }
-        
-        // Gọi trackEnd để cảnh báo nếu RAM không chịu giảm
-        memoryProfiler.trackEnd('Global_Dispose');
-    });
+    // Gắn luồng kiện click vào nút
+    btnExportWeb.addEventListener('click', () => handleExport('web', btnExportWeb));
+    btnExportGame.addEventListener('click', () => handleExport('game', btnExportGame));
+    btnExportVideo.addEventListener('click', () => handleExport('video', btnExportVideo));
 });

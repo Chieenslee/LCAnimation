@@ -104,3 +104,14 @@
 - **Giao tiếp (Interfaces):** Endpoint `POST /api/v1/generate` nay nhận thêm trường `export_type` (`video`, `game`, `web`) từ `FormData`. Phản hồi một tệp nén `.zip` hoặc `.mp4` chuẩn qua `FileResponse`.
 - **Tài nguyên (Quản lý Rác Ổ Cứng Server):** Ứng dụng kỹ thuật `background_tasks` độc quyền của FastAPI. Ngay sau khi server xả xong file ZIP về cho người dùng, một luồng ngầm sẽ lập tức thức dậy và gọi lệnh `os.remove()`, dọn sạch sẽ toàn bộ `.mp4`, `.png`, `.json`, `.zip` tạm trong ổ cứng. Không cho rác ảo tích tụ gây sập ổ chủ.
 - **Bước tiếp theo:** Xóa hẳn các thư mục Exporter lằng nhằng ở Frontend và cấu trúc lại các nút bấm Export để cắm thẳng trực tiếp vào Backend. Mọi thứ đã nhẹ như lông hồng.
+
+## [18/04/2026 - 20:34] - Cập nhật trạng thái (FRONTEND API INTEGRATION)
+- **Kiến trúc:** Frontend (Vite/TypeScript) chuyển đổi hoàn toàn thành kiến trúc Thin-Client giao tiếp qua REST API.
+- **Module hoàn thiện:** Cập nhật lại toàn bộ file điều khiển `frontend/src/main.ts`. Vô hiệu hóa và bỏ hoang các Worker cũng như các class Exporter JS dư thừa.
+- **Chức năng:**
+  1. Frontend giờ đây chỉ bao gồm UI (DOM) gọn nhẹ. Sự kiện upload ảnh sẽ mở khóa trực tiếp các nút Export. Nút Generate cũ được ẩn đi do gộp chung vòng đời xử lý.
+  2. Hàm `handleExport` gói gọn hình ảnh, prompt và tham số `export_type` vào đối tượng `FormData` và bắn `fetch()` thẳng lên máy chủ Python (`http://localhost:8000/api/v1/generate`).
+  3. Cơ chế Download tự động: Bắt phản hồi nhị phân (Binary stream) từ Backend, chuyển hóa thành đối tượng `Blob`, bọc vào thẻ `<a>` ảo trên DOM để ép trình duyệt tải file (`.mp4`, `.zip`) về cho người dùng. Khép lại một vòng đời xử lý hoàn hảo.
+  4. Cơ chế tự dọn dẹp RAM UI: Hàm `URL.revokeObjectURL(downloadUrl)` và `document.body.removeChild(a)` được gọi chuẩn mực để chống rò rỉ tài nguyên, ngay cả khi Frontend chỉ là Thin-Client.
+- **Giao tiếp (Interfaces):** Sử dụng HTTP POST chuẩn mực. Vứt bỏ khái niệm MessageEvent của WebWorker và gỡ bỏ toàn bộ gánh nặng Canvas/ArrayBuffer của FFmpeg.wasm.
+- **Tài nguyên:** Chấm dứt kỷ nguyên tràn RAM trên trình duyệt của người dùng. Trình duyệt nay chỉ tốn vài MB RAM để gửi ảnh và tải file ZIP. Kiến trúc LCAnimation đã chính thức bước sang ngưỡng cửa Enterprise Grade (Tiêu chuẩn Doanh nghiệp) với độ ổn định tuyệt đối.
