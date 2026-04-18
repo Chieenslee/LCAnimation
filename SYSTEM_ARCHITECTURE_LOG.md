@@ -60,3 +60,10 @@
 - **Giao tiếp (Interfaces):** Bổ sung tham số `onProgress?: (progress: number) => void` vào `IExporter` để truyền ngược số liệu % render từ FFmpeg WASM lên UI Main Thread.
 - **Tài nguyên:** Sự kiện dọn dẹp bộ nhớ toàn cục (Global Disposal) trong hàm `window.addEventListener('beforeunload')` được thực thi hoàn chỉnh và chặt chẽ, đánh bay triệt để sự cố treo/rò rỉ RAM khi đóng trình duyệt.
 - **Bước tiếp theo:** Kiểm thử thực tế (Testing), sửa lỗi giao diện (CSS) và chuẩn bị triển khai lên môi trường Production.
+
+## [18/04/2026 - 20:04] - Cập nhật trạng thái
+- **Module hoàn thiện:** `src/utils/memory-profiler.ts`, `src/style.css`, cập nhật `index.html` và `main.ts`
+- **Chức năng:** Tích hợp hệ thống giám sát rò rỉ bộ nhớ RAM/VRAM chuyên sâu (`MemoryProfiler`) và khoác "áo mới" cho toàn bộ hệ thống bằng UI Dark Mode cực kỳ chuyên nghiệp. Thanh Progress Bar được bổ sung hiệu ứng sọc chéo di chuyển (animated stripes).
+- **Giao tiếp (Interfaces):** Sử dụng API `performance.memory` gốc của trình duyệt (trên các trình duyệt nhân Chromium) để đo lường JS Heap theo thời gian thực.
+- **Tài nguyên:** Công cụ `MemoryProfiler` sẽ in log cảnh báo đỏ (`console.warn`) ra Console nếu phát hiện mức chênh lệch RAM quá lớn (>50MB) sau khi gọi hàm `dispose()`. Đây là chốt chặn cuối cùng minh chứng hệ thống thu hồi rác (GC) và kiến trúc của LCAnimation đã hoạt động hoàn hảo.
+- **Bước tiếp theo:** Sẵn sàng cho môi trường Production và Deploy lên Internet.

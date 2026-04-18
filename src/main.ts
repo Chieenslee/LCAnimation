@@ -2,6 +2,7 @@ import { ImageProcessor } from './core/image-processing/image-processor';
 import { WebExporter } from './exporters/web-exporter';
 import { GameExporter } from './exporters/game-exporter';
 import { VideoExporter } from './exporters/video-exporter';
+import { MemoryProfiler } from './utils/memory-profiler';
 
 // Types for Worker Messages
 interface WorkerMessage {
@@ -39,13 +40,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const webExporter = new WebExporter();
     const gameExporter = new GameExporter();
     const videoExporter = new VideoExporter();
+    const memoryProfiler = new MemoryProfiler(); // Công cụ đo RAM
 
     // 3. Quản lý trạng thái State
-    let currentAnimationData: any = null; // Chứa Blob hoặc mảng ImageBitmap từ AI Worker
+    let currentAnimationData: any = null; 
     let currentSelectedFile: File | null = null;
     let aiWorker: Worker | null = null;
 
-    // Helper: Hàm quản lý trạng thái thanh tiến trình siêu mượt
     const updateProgress = (status: string, percent: number) => {
         progressBarContainer.style.display = 'block';
         progressStatus.innerText = status;
@@ -61,15 +62,14 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (e) {
         console.error("Failed to initialize AI Web Worker:", e);
         updateProgress("Error: Web Worker Failed to Load.", 0);
-        progressBarFill.style.backgroundColor = '#ef4444'; // Báo lỗi màu đỏ
+        progressBarFill.style.backgroundColor = '#ef4444'; 
     }
 
-    // Bắt sự kiện người dùng chọn ảnh
     uploadInput.addEventListener('change', (event: Event) => {
         const target = event.target as HTMLInputElement;
         if (target.files && target.files.length > 0) {
             currentSelectedFile = target.files[0];
-            generateBtn.disabled = false; // Mở nút Generate
+            generateBtn.disabled = false; 
         }
     });
 
@@ -83,28 +83,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.log("AI Model Worker initialized successfully.");
                     break;
                 case 'PROGRESS':
-                    // Đồng bộ hiển thị tiến trình của WebGPU AI Model
                     updateProgress(payload?.message || 'AI is dreaming...', payload?.progress || 0);
                     break;
                 case 'GENERATE_SUCCESS':
                     currentAnimationData = payload?.animationData;
                     updateProgress("Generation Completed Successfully!", 100);
                     
-                    // Mở khóa bộ 3 nút xuất file
                     btnExportWeb.disabled = false;
                     btnExportGame.disabled = false;
                     btnExportVideo.disabled = false;
                     
-                    alert("Hoạt ảnh đã được tạo thành công! Bạn có thể xuất file ngay bây giờ.");
+                    memoryProfiler.trackEnd('AI_Inference'); // Dừng đo RAM cho luồng AI
                     
-                    setTimeout(() => {
-                        progressBarContainer.style.display = 'none'; // Tự ẩn thanh tiến trình sau 3s
-                    }, 3000);
+                    alert("Hoạt ảnh đã được tạo thành công! Bạn có thể xuất file ngay bây giờ.");
+                    setTimeout(() => { progressBarContainer.style.display = 'none'; }, 3000);
                     break;
                 case 'GENERATE_ERROR':
                     updateProgress("Error generating animation.", 0);
-                    progressBarFill.style.backgroundColor = '#ef4444'; // Đỏ báo lỗi
+                    progressBarFill.style.backgroundColor = '#ef4444'; 
                     console.error("Generation Error:", payload?.error);
+                    memoryProfiler.trackEnd('AI_Inference'); // Dừng đo RAM 
                     alert("Đã xảy ra lỗi trong quá trình tạo hoạt ảnh. Vui lòng kiểm tra Console.");
                     break;
             }
@@ -115,14 +113,15 @@ document.addEventListener('DOMContentLoaded', () => {
     generateBtn.addEventListener('click', async () => {
         if (!currentSelectedFile || !aiWorker) return;
 
-        // Reset UI và khóa nút xuất file
         btnExportWeb.disabled = true;
         btnExportGame.disabled = true;
         btnExportVideo.disabled = true;
         currentAnimationData = null;
-        progressBarFill.style.backgroundColor = '#10b981'; // Xanh lá mượt
+        progressBarFill.style.backgroundColor = '#10b981'; 
 
         try {
+            memoryProfiler.trackStart('AI_Inference'); // Bắt đầu đo RAM lúc khởi chạy AI
+            
             updateProgress("Resizing image for VRAM safety...", 5);
             const processedBlob = await imageProcessor.processImage(currentSelectedFile);
             
@@ -140,10 +139,11 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error("Image Processing Error:", error);
             updateProgress("Failed to prepare image.", 0);
             progressBarFill.style.backgroundColor = '#ef4444';
+            memoryProfiler.trackEnd('AI_Inference');
         }
     });
 
-    // 7. Giao diện tích hợp Export và Loading UX
+    // 7. Giao diện tích hợp Export và Profiling
     const handleExport = async (exporter: WebExporter | GameExporter | VideoExporter, btnText: string, targetBtn: HTMLButtonElement) => {
         if (!currentAnimationData) {
             alert("Vui lòng khởi tạo (Generate) hoạt ảnh trước khi xuất file.");
@@ -151,15 +151,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const originalText = targetBtn.innerText;
+        const profileOp = `Export_${btnText.replace(/ /g, '_')}`;
+        
         try {
-            // Thay đổi trạng thái nút bấm
             targetBtn.disabled = true;
             targetBtn.innerText = "⏳ Đang xử lý...";
             progressBarFill.style.backgroundColor = '#10b981';
             
             updateProgress(`Starting ${btnText} export...`, 0);
 
-            // Bắt progress callback từ Exporters (Đặc biệt cho FFmpeg Video Export)
+            memoryProfiler.trackStart(profileOp); // Bắt đầu đo RAM cho Exporter
+
             await exporter.export(currentAnimationData, (progress: number) => {
                 updateProgress(`Rendering ${btnText}...`, progress * 100);
             });
@@ -169,16 +171,14 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error(`Export Error for ${btnText}:`, error);
             updateProgress(`Export Failed!`, 0);
-            progressBarFill.style.backgroundColor = '#ef4444'; // Báo đỏ
+            progressBarFill.style.backgroundColor = '#ef4444'; 
             alert(`Xuất file thất bại. Vui lòng kiểm tra Console. Lỗi: ${(error as Error).message}`);
         } finally {
-            // Phục hồi UI về mặc định
+            memoryProfiler.trackEnd(profileOp); // Chốt sổ lượng RAM tiêu thụ
+            
             targetBtn.innerText = originalText;
             targetBtn.disabled = false;
-            
-            setTimeout(() => {
-                progressBarContainer.style.display = 'none';
-            }, 3000);
+            setTimeout(() => { progressBarContainer.style.display = 'none'; }, 3000);
         }
     };
 
@@ -186,9 +186,12 @@ document.addEventListener('DOMContentLoaded', () => {
     btnExportGame.addEventListener('click', () => handleExport(gameExporter, "Game (SpriteSheet)", btnExportGame));
     btnExportVideo.addEventListener('click', () => handleExport(videoExporter, "Video (MP4)", btnExportVideo));
 
-    // 8. KỶ LUẬT THÉP: Dọn dẹp Toàn cục (Global Disposal)
+    // 8. KỶ LUẬT THÉP: Dọn dẹp Toàn cục và Kiểm toán RAM
     window.addEventListener('beforeunload', () => {
         console.log("Unloading window... Disposing ALL LCAnimation resources.");
+        
+        memoryProfiler.trackStart('Global_Dispose');
+        
         imageProcessor.dispose();
         webExporter.dispose();
         gameExporter.dispose();
@@ -198,5 +201,8 @@ document.addEventListener('DOMContentLoaded', () => {
             aiWorker.postMessage({ type: 'DISPOSE_AI' } as WorkerMessage);
             aiWorker.terminate();
         }
+        
+        // Gọi trackEnd để cảnh báo nếu RAM không chịu giảm
+        memoryProfiler.trackEnd('Global_Dispose');
     });
 });
