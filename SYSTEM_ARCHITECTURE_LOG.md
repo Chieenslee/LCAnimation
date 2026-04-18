@@ -67,3 +67,10 @@
 - **Giao tiếp (Interfaces):** Sử dụng API `performance.memory` gốc của trình duyệt (trên các trình duyệt nhân Chromium) để đo lường JS Heap theo thời gian thực.
 - **Tài nguyên:** Công cụ `MemoryProfiler` sẽ in log cảnh báo đỏ (`console.warn`) ra Console nếu phát hiện mức chênh lệch RAM quá lớn (>50MB) sau khi gọi hàm `dispose()`. Đây là chốt chặn cuối cùng minh chứng hệ thống thu hồi rác (GC) và kiến trúc của LCAnimation đã hoạt động hoàn hảo.
 - **Bước tiếp theo:** Sẵn sàng cho môi trường Production và Deploy lên Internet.
+
+## [18/04/2026 - 20:15] - Cập nhật trạng thái (HOTFIX)
+- **Module hoàn thiện:** `src/core/ai-engine/ai-model-manager.ts`, `src/workers/ai-worker.ts`, `src/main.ts`
+- **Chức năng:** Vá lỗi UX nghiêm trọng gây kẹt thanh tiến trình. Tích hợp Callback Progress đi sâu vào lõi tải mô hình của `transformers.js` và vòng lặp render khung hình.
+- **Giao tiếp (Interfaces):** Worker giao tiếp liên tục với Main Thread để gửi các Status Codes khắt khe: `DOWNLOADING_MODEL`, `COMPILING_GPU`, `GENERATING` và `GENERATE_ERROR` (Kèm theo % hoàn thành chi tiết).
+- **Tài nguyên:** Toàn bộ logic bên trong Web Worker được bọc cẩn thận bằng khối `try...catch`. Bất kỳ lỗi tràn VRAM hay rớt mạng nào cũng được ném thẳng về UI, nhuộm đỏ thanh tiến trình và xả lỗi ra màn hình cho người dùng thay vì treo trình duyệt ngầm.
+- **Bước tiếp theo:** Production Ready.

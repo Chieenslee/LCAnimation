@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const generateBtn = document.getElementById('generate-btn') as HTMLButtonElement | null;
     
     const progressBarContainer = document.getElementById('progress-container') as HTMLDivElement | null;
-    const progressStatus = document.getElementById('progress-status') as HTMLSpanElement | null;
+    const progressStatus = document.getElementById('status-text') as HTMLSpanElement | null;
     const progressPercentage = document.getElementById('progress-percentage') as HTMLSpanElement | null;
     const progressBarFill = document.getElementById('progress-bar-fill') as HTMLDivElement | null;
 
@@ -99,11 +99,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     setTimeout(() => { progressBarContainer.style.display = 'none'; }, 3000);
                     break;
                 case 'GENERATE_ERROR':
-                    updateProgress("Error generating animation.", 0);
+                    updateProgress(`Lỗi: ${payload?.error || 'Unknown error'}`, 0);
                     progressBarFill.style.backgroundColor = '#ef4444'; 
                     console.error("Generation Error:", payload?.error);
                     memoryProfiler.trackEnd('AI_Inference'); // Dừng đo RAM 
-                    alert("Đã xảy ra lỗi trong quá trình tạo hoạt ảnh. Vui lòng kiểm tra Console.");
+                    alert(`Đã xảy ra lỗi trong quá trình xử lý AI. Lỗi: ${payload?.error}`);
                     break;
             }
         });

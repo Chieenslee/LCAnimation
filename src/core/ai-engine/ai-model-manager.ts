@@ -20,7 +20,7 @@ export class AIModelManager {
     /**
      * Khởi tạo pipeline AI với mô hình Lượng tử hóa (Quantized) chạy trên WebGPU.
      */
-    public async initializeResource(): Promise<void> {
+    public async initializeResource(onProgress?: (status: any) => void): Promise<void> {
         if (this.isInitialized) {
             console.log("AI Model is already initialized.");
             return;
@@ -28,12 +28,25 @@ export class AIModelManager {
 
         try {
             console.log("Loading quantized AI model into WebGPU...");
+            if (onProgress) onProgress({ status: 'DOWNLOADING_MODEL', progress: 0, message: 'Khởi tạo tiến trình tải mô hình AI...' });
             
             // Tải mô hình vào pipeline với device là 'webgpu' và kiểu dữ liệu 'q8' (8-bit quantization)
             this.aiPipeline = await pipeline('image-to-image', this.modelName, {
                 device: 'webgpu',
                 dtype: 'q8', // Tiết kiệm VRAM triệt để cho card RTX 3050 (4GB)
+                progress_callback: (data: any) => {
+                    if (data && data.status === 'progress' && onProgress) {
+                        const percent = Math.round((data.loaded / data.total) * 100);
+                        onProgress({ 
+                            status: 'DOWNLOADING_MODEL', 
+                            progress: percent, 
+                            message: `Đang tải mô hình AI (${percent}%)... Lần đầu sẽ mất thời gian`
+                        });
+                    }
+                }
             });
+
+            if (onProgress) onProgress({ status: 'COMPILING_GPU', progress: 100, message: 'Đang biên dịch GPU Shaders (Mất khoảng vài giây)...' });
 
             this.isInitialized = true;
             console.log("AI Model loaded successfully into WebGPU VRAM.");
@@ -49,7 +62,7 @@ export class AIModelManager {
      * @param prompt Văn bản điều hướng AI sinh hiệu ứng
      * @returns Blob đại diện cho dữ liệu hoạt ảnh kết quả
      */
-    public async generateAnimation(image: Blob, prompt: string): Promise<Blob> {
+    public async generateAnimation(image: Blob, prompt: string, onProgress?: (status: any) => void): Promise<Blob> {
         if (!this.isInitialized || !this.aiPipeline) {
             throw new Error("AI Model pipeline is not initialized. Please call initializeResource() first.");
         }
@@ -59,11 +72,22 @@ export class AIModelManager {
             const imageUrl = URL.createObjectURL(image);
 
             console.log(`Starting WebGPU inference for prompt: "${prompt}"...`);
+            if (onProgress) onProgress({ status: 'GENERATING', progress: 0, message: 'Bắt đầu khởi tạo luồng nội suy AI...' });
 
             // Chạy pipeline xử lý (Ví dụ với 20 steps để tối ưu tốc độ)
             const result = await this.aiPipeline(imageUrl, prompt, {
                 num_inference_steps: 20, 
                 guidance_scale: 7.5,
+                callback_function: (step: number, timestep: number, latents: any) => {
+                    if (onProgress) {
+                        const percent = Math.min(Math.round(((step + 1) / 20) * 100), 100);
+                        onProgress({ 
+                            status: 'GENERATING', 
+                            progress: percent, 
+                            message: `Đang render khung hình AI (${percent}%)...` 
+                        });
+                    }
+                }
             });
 
             // Thu hồi URL ảnh gốc ngay lập tức để tiết kiệm RAM trình duyệt
