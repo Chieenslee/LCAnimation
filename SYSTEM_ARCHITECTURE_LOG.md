@@ -53,3 +53,10 @@
 - **Giao tiếp (Interfaces):** Tuân thủ API mới nhất (v0.12+) của `@ffmpeg/ffmpeg` thông qua `fetchFile` và `ffmpeg.exec()`. Khối lệnh `try...catch...finally` được áp dụng khắt khe để bắt lỗi sập FFmpeg.
 - **Tài nguyên:** Khối lệnh `finally` bảo chứng cho việc vòng lặp `ffmpeg.deleteFile(...)` được thi hành ngay lập tức, xóa sạch file gốc và file kết quả. Kèm với lệnh `ffmpeg.terminate()` dứt khoát trong hàm `dispose()`, đảm bảo RAM được trả lại cho trình duyệt, không một Megabyte nào bị rò rỉ (leak) trong Virtual File System của WASM.
 - **Bước tiếp theo:** Tối ưu hóa UI/UX: Hiển thị thanh tiến trình chi tiết khi chạy AI và khi Render Video, làm mịn trải nghiệm người dùng.
+
+## [18/04/2026 - 20:00] - Cập nhật trạng thái
+- **Module hoàn thiện:** `index.html`, `main.ts` và Cập nhật `IExporter`
+- **Chức năng:** Hoàn thiện UI/UX và luồng người dùng End-to-End. Xây dựng giao diện Dark Mode đẹp mắt trên `index.html`. Tích hợp thanh tiến trình động (`Progress Bar`) thay đổi độ rộng và trạng thái để báo hiệu cho người dùng khi AI xử lý hoặc khi FFmpeg đang render Video. Các nút Export được khóa/mở tự động và chuyển trạng thái "⏳ Đang xử lý...".
+- **Giao tiếp (Interfaces):** Bổ sung tham số `onProgress?: (progress: number) => void` vào `IExporter` để truyền ngược số liệu % render từ FFmpeg WASM lên UI Main Thread.
+- **Tài nguyên:** Sự kiện dọn dẹp bộ nhớ toàn cục (Global Disposal) trong hàm `window.addEventListener('beforeunload')` được thực thi hoàn chỉnh và chặt chẽ, đánh bay triệt để sự cố treo/rò rỉ RAM khi đóng trình duyệt.
+- **Bước tiếp theo:** Kiểm thử thực tế (Testing), sửa lỗi giao diện (CSS) và chuẩn bị triển khai lên môi trường Production.
