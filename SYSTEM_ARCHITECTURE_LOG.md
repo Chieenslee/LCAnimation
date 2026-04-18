@@ -74,3 +74,11 @@
 - **Giao tiếp (Interfaces):** Worker giao tiếp liên tục với Main Thread để gửi các Status Codes khắt khe: `DOWNLOADING_MODEL`, `COMPILING_GPU`, `GENERATING` và `GENERATE_ERROR` (Kèm theo % hoàn thành chi tiết).
 - **Tài nguyên:** Toàn bộ logic bên trong Web Worker được bọc cẩn thận bằng khối `try...catch`. Bất kỳ lỗi tràn VRAM hay rớt mạng nào cũng được ném thẳng về UI, nhuộm đỏ thanh tiến trình và xả lỗi ra màn hình cho người dùng thay vì treo trình duyệt ngầm.
 - **Bước tiếp theo:** Production Ready.
+
+## [18/04/2026 - 20:22] - Cập nhật trạng thái (TÁI CẤU TRÚC KIẾN TRÚC CLIENT-SERVER)
+- **Kiến trúc mới:** Chuyển đổi toàn diện từ Local WebGPU sang Client - Server (Frontend Vite/TypeScript + Backend Python/FastAPI).
+- **Module hoàn thiện:** Tạo `backend/main.py`, `backend/requirements.txt`, và đập đi xây lại cốt lõi `src/core/ai-engine/ai-model-manager.ts`.
+- **Chức năng:** Dịch chuyển toàn bộ trọng tải xử lý AI khổng lồ sang Máy chủ Backend. Giao diện Frontend giờ đây cực kỳ mỏng nhẹ (Thin Client), chỉ đóng vai trò thu thập thông tin và hiển thị kết quả. Python Backend sẽ sử dụng hệ sinh thái `diffusers` và `torch` để tương tác trực tiếp với GPU vật lý, đem lại sức mạnh và tốc độ vượt trội.
+- **Giao tiếp (Interfaces):** Frontend gọi `fetch()` API qua chuẩn `multipart/form-data` (POST `/api/v1/generate`) tới Backend. Cấu hình CORS ở Backend được mở để giao tiếp mượt mà.
+- **Tài nguyên:** XÓA BỎ hoàn toàn logic WebGPU tải xuống trình duyệt và các lỗi tràn VRAM trên máy Client. Áp lực bộ nhớ đã được khoán hoàn toàn cho Server Python.
+- **Bước tiếp theo:** Di chuyển mã nguồn cũ vào thư mục `frontend/`, thiết lập Server Backend và xây dựng luồng AI/Diffusers thực tế.
