@@ -46,3 +46,10 @@
 - **Giao tiếp (Interfaces):** Điều chỉnh `IExporter` nhận kiểu dữ liệu động (`data: any`) để hỗ trợ mảng đối tượng `ImageBitmap` từ luồng Worker.
 - **Tài nguyên:** Áp dụng kỹ thuật "zero-out Canvas" (`canvas.width = 0; canvas.height = 0;`) kết hợp cắt đứt tham chiếu (gán `null`) trong hàm `dispose()` để báo hiệu cho bộ dọn rác (Garbage Collector) thu hồi RAM cực kỳ triệt để.
 - **Bước tiếp theo:** Hoàn thiện bộ xuất Video MP4 bằng FFmpeg.wasm và kết nối UI lần cuối.
+
+## [18/04/2026 - 19:57] - Cập nhật trạng thái
+- **Module hoàn thiện:** `src/exporters/video-exporter.ts`
+- **Chức năng:** Biên dịch chuỗi khung hình (frames) thành Video MP4 chất lượng cao hoàn toàn nội bộ trên trình duyệt. Sử dụng kiến trúc WebAssembly của `FFmpeg` xử lý nén bằng chuẩn `libx264` với định dạng màu `yuv420p` đảm bảo tương thích mọi nền tảng.
+- **Giao tiếp (Interfaces):** Tuân thủ API mới nhất (v0.12+) của `@ffmpeg/ffmpeg` thông qua `fetchFile` và `ffmpeg.exec()`. Khối lệnh `try...catch...finally` được áp dụng khắt khe để bắt lỗi sập FFmpeg.
+- **Tài nguyên:** Khối lệnh `finally` bảo chứng cho việc vòng lặp `ffmpeg.deleteFile(...)` được thi hành ngay lập tức, xóa sạch file gốc và file kết quả. Kèm với lệnh `ffmpeg.terminate()` dứt khoát trong hàm `dispose()`, đảm bảo RAM được trả lại cho trình duyệt, không một Megabyte nào bị rò rỉ (leak) trong Virtual File System của WASM.
+- **Bước tiếp theo:** Tối ưu hóa UI/UX: Hiển thị thanh tiến trình chi tiết khi chạy AI và khi Render Video, làm mịn trải nghiệm người dùng.
