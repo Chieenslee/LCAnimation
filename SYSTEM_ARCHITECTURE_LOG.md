@@ -82,3 +82,14 @@
 - **Giao tiếp (Interfaces):** Frontend gọi `fetch()` API qua chuẩn `multipart/form-data` (POST `/api/v1/generate`) tới Backend. Cấu hình CORS ở Backend được mở để giao tiếp mượt mà.
 - **Tài nguyên:** XÓA BỎ hoàn toàn logic WebGPU tải xuống trình duyệt và các lỗi tràn VRAM trên máy Client. Áp lực bộ nhớ đã được khoán hoàn toàn cho Server Python.
 - **Bước tiếp theo:** Di chuyển mã nguồn cũ vào thư mục `frontend/`, thiết lập Server Backend và xây dựng luồng AI/Diffusers thực tế.
+
+## [18/04/2026 - 20:27] - Cập nhật trạng thái (LÕI AI PYTHON & VRAM OPTIMIZATION)
+- **Module hoàn thiện:** `backend/services/ai_service.py` và cập nhật `backend/main.py`.
+- **Chức năng:** Triển khai lõi Sinh Video (Animation Generation) chuyên nghiệp sử dụng HuggingFace `diffusers` (Model: Stable Video Diffusion). Nhận ảnh gốc và prompt, suy luận khung hình, và xuất thẳng ra file MP4 tạm thời bằng thư viện con `export_to_video`.
+- **Giao tiếp (Interfaces):** Tái cấu trúc endpoint `POST /api/v1/generate`. Endpoint không còn trả về Mock JSON đơn giản, mà sử dụng `FileResponse` của FastAPI để stream trực tiếp file video sinh ra về cho Frontend xử lý.
+- **Tài nguyên (Chiến lược VRAM cho RTX 3050 4GB):** Thiết lập một "pháo đài" bảo vệ VRAM cực kỳ khắt khe để gánh khối lượng tính toán khổng lồ:
+  1. `torch.float16`: Ép kích thước Tensor xuống một nửa (Half-precision).
+  2. `pipe.enable_model_cpu_offload()`: Chia sẻ gánh nặng với RAM máy tính, chỉ load layer cần thiết vào VRAM tại một thời điểm (Zero-OOM).
+  3. `pipe.enable_vae_slicing()`: Cắt lát quá trình decode ảnh, khắc chế triệt để lỗi nổ bộ nhớ khi xuất hàng chục frames cùng lúc.
+  4. `torch.cuda.empty_cache()`: Khối lệnh `finally` cưỡng ép dọn rác GPU và thu gom `gc.collect()` sau mỗi lần sinh ảnh, không để lại dù chỉ 1MB VRAM bị rò rỉ.
+- **Bước tiếp theo:** Cập nhật Frontend để đón nhận và trích xuất Frame từ File Video MP4 được trả về từ Backend thay cho dữ liệu Blob nội suy như trước đây.
